@@ -1,0 +1,128 @@
+---
+title: "Practical Machine Learning-Project"
+author: "D. Moody"
+date: "Sunday, April 26, 2015"
+output: html_document
+---
+#Introduction
+This project will create a model on which we can predict the proper form for lifting a barbell by six participants. Data was gathered from accelerometers on the belt, forearm, arm, and barbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The source of this data is http://groupware.les.inf.puc-rio.br/har. On this website. The five different barbell lifts and their associated code are as follows:
+
+exactly according to the specification (Class A),
+throwing the elbows to the front (Class B),
+lifting the dumbbell only halfway (Class C),
+lowering the dumbbell only halfway (Class D) and
+throwing the hips to the front (Class E)
+
+The training data for this project are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The test data are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+#Exploratory analysis and preprocessing
+First the datasets and libraries need to be loaded.
+
+
+```{r}
+pml.training <- read.csv("~/Coursera/MachineLearning/pml-training.csv")
+
+pml.testing <- read.csv("~/Coursera/MachineLearning/pml-testing.csv")
+###load libraries
+library(caret)
+library(plyr)
+library(dplyr)
+
+set.seed(20152015)
+pmlData <- pml.training
+inTrain <- createDataPartition(pmlData$classe, p=0.70, list=FALSE)
+training <- pmlData[inTrain,]
+testing <- pmlData[-inTrain,]
+```
+
+
+Using head(training) I noticed there were a lot of divide by zero entries. I cleaned these out by running the following code. I also removed the X variable as it was an index and seemed to overfit our data. I removed all timestamps. I also remove all data where new window was equal to yes. This data had statistics that seemed to be created by the data authors. I also removed any varaible that contained total or var for the smae reason. At this point I had the measurements from the devices themselves. The nearZeroVar and findCorrelation functions could have been used for this as well.
+```{r, echo=FALSE}
+training <- tbl_df(training)
+training <- training[training$new_window=="no",]
+dataNA <- lapply(training, mean) == "NA"
+NAvar <- names(training[dataNA])
+training <- select(training, -one_of(NAvar[2:102]))
+var2 <- c("X","raw_timestamp_part_1","raw_timestamp_part_2","num_window" )
+training <- select(training, -one_of(var2))
+training <- select(training, -contains("total"))
+training <- select(training, -contains("var"))
+```
+
+#Model building
+I ran the models below on a random sample of the training data to increase speed and get an idea of which model would work best.
+```{r}
+trainingSample <- training[sample(nrow(training), 1000), ]
+model_rf <- train(classe ~ ., method="rf", data=trainingSample)
+
+model_gbm <- train(classe ~ ., method="gbm", data=trainingSample, verbose=FALSE)
+
+model_rpart <- train(classe ~ ., method="rpart", data=trainingSample)
+```
+###Results for using the rf method were as follows:
+Overall accuracy was 87.5% with an error rate of 8.8%. this was the best result out of the three methods.
+```{r}
+print(model_rf)
+model_rf$finalModel
+```
+
+ 
+###Results for using the rpart method were as follows:
+```{r}
+print(model_rpart)
+```
+ 
+###Results for using the gbm method were as follows:
+```{r}
+model_gbm$results
+```
+Confusion Matrix
+
+```{r}
+confusionMatrix(model_gbm)
+```
+
+
+From the above evidence it is clear that using the rf method has the smallest error rate and the best accuracy.
+#Prediction accuracy
+accuracy of prediction on test data set
+## Highest accuracy was 0.9922265 - this seems to change even though I set my seed to the same number
+## Estamated error rate was 0.44%
+```{r}
+model_rf_final <- train(classe ~ ., method="rf", data=training)
+```
+##results
+```{r}
+print(model_rf_final)
+model_rf_final$finalModel
+```
+
+
+
+
+###When run on our test data this is what we got.
+```{r}
+results <- predict(model_rf_final, testing)
+table(testing$classe, results)
+```
+###Course test data
+```{r}
+ctest <- tbl_df(pml.testing)
+```
+### Predicting our answers
+```{r}
+answers <- predict(model_rf_final, ctest)
+print(answers) 
+```
+When submitted all of the answers had been predicted correctly.
+
+###Conclusion
+
+Using the train function and the rf method I was able to predict with a 992% accuracy with an error rate of 0.44%.
+The model that was tun on the training dataset was 100% accurate on the testing dataset.
+
+Due to time restraints I did not put active code in this document. It is the code that was used. I will create another document and if time permits I will put that one up.
